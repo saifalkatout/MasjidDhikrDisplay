@@ -39,7 +39,10 @@ android {
 }
 
 dependencies {
-
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+    implementation("com.squareup.okhttp3:okhttp:4.10.0") // For HTTP requests
+    implementation("com.squareup.moshi:moshi:1.15.0") // For JSON parsing
+    implementation("com.squareup.moshi:moshi-kotlin:1.15.0") // Moshi Kotlin support
     implementation("androidx.leanback:leanback-grid:1.0.0-alpha03")
     implementation("androidx.leanback:leanback-preference:1.2.0-alpha03")
     implementation(libs.androidx.core.ktx)
