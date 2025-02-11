@@ -1,9 +1,7 @@
 package com.example.masjiddisplay
 
 import android.annotation.SuppressLint
-import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -12,7 +10,6 @@ import android.widget.ImageView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.work.Constraints
-import androidx.work.Data
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -28,7 +25,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
-import java.time.LocalDateTime
 import java.util.concurrent.TimeUnit
 
 
@@ -36,7 +32,7 @@ data class PrayerTimings(
     @Json(name = "Fajr") val fajr: String,
     @Json(name = "Dhuhr") val dhuhr: String,
     @Json(name = "Asr") val asr: String,
-    @Json(name = "Maghrib") val maghrib: String,
+    @Json(name = "Maghrib") val maghreb: String,
     @Json(name = "Isha") val isha: String
 )
 
@@ -51,6 +47,8 @@ data class ApiResponse(
 )
 
 var timingsList = mutableMapOf("a" to "1")
+
+var iqamaTimeMap = mutableMapOf("fajr" to 25, "dhuhr" to 20, "asr" to 20, "maghreb" to 13, "isha" to 15)
 
 class MidnightTVWorker(context: Context, workerParams: WorkerParameters) :
     Worker(context, workerParams) {
@@ -79,7 +77,7 @@ class MidnightTVWorker(context: Context, workerParams: WorkerParameters) :
         // Extract and print prayer times
         apiResponse?.data?.timings?.let { timings ->
             timingsList["isha"] = timings.isha
-            timingsList["maghrib"] = timings.maghrib
+            timingsList["maghreb"] = timings.maghreb
             timingsList["asr"] = timings.asr
             timingsList["dhuhr"] = timings.dhuhr
             timingsList["fajr"] = timings.fajr
@@ -131,7 +129,7 @@ class MainActivity : AppCompatActivity() {
             // Extract and print prayer times
             apiResponse?.data?.timings?.let { timings ->
                 timingsList["isha"] = timings.isha
-                timingsList["maghrib"] = timings.maghrib
+                timingsList["maghreb"] = timings.maghreb
                 timingsList["asr"] = timings.asr
                 timingsList["dhuhr"] = timings.dhuhr
                 timingsList["fajr"] = timings.fajr
@@ -180,20 +178,55 @@ class MainActivity : AppCompatActivity() {
         val calendar = Calendar.getInstance()
         val hour = calendar.get(Calendar.HOUR_OF_DAY)
         val minute = calendar.get(Calendar.MINUTE)
+
         for ((key, value) in timingsList) {
+
             if (key == "a") continue
-            if (compareTimes(String.format("%02d:%02d", hour, minute), value.orEmpty()) > 0) {
-                Log.i(
-                    "FF",
-                    "$key Time"
+
+            val afterPrayerTime = compareTimes(
+                String.format("%02d:%02d", hour, minute),
+                value.orEmpty()
+            ) >= 0
+            val beforeIqamaTime = compareTimes(
+                    String.format(
+                        "%02d:%02d",
+                        hour,
+                        minute
+                    )
+                , addMinutesToTimestamp(value.orEmpty(), iqamaTimeMap[key]!!)
+            ) < 0
+
+
+            val afterprayerTime =  compareTimes(
+                String.format(
+                    "%02d:%02d",
+                    hour,
+                    minute
                 )
-                break
+                , addMinutesToTimestamp(addMinutesToTimestamp(value.orEmpty(), iqamaTimeMap[key]!!), 10)
+            )  >= 0
+
+            val endTime =  compareTimes(
+                String.format(
+                    "%02d:%02d",
+                    hour,
+                    minute
+                )
+                , addMinutesToTimestamp(addMinutesToTimestamp(value.orEmpty(), iqamaTimeMap[key]!!), 20)
+            )  < 0
+
+            if ((afterPrayerTime && beforeIqamaTime) || (afterprayerTime && endTime)) {
+                return when (key) {
+                    "isha" -> R.drawable.isha
+                    "maghreb" -> R.drawable.maghreb
+                    "asr" -> R.drawable.asr
+                    "dhuhr" -> R.drawable.dhuhr
+                    "fajr" -> R.drawable.fajr
+                    else -> R.drawable.black
+                }
             }
-
         }
-
-        if (minute >= 10) return R.drawable.morning
-        return R.drawable.evening
+        return R.drawable.black
     }
 
     fun compareTimes(time1: String, time2: String): Int {
@@ -237,6 +270,16 @@ class MainActivity : AppCompatActivity() {
             ExistingPeriodicWorkPolicy.UPDATE,
             workRequest
         )
+    }
+
+    fun addMinutesToTimestamp(timestamp: String, minutesToAdd: Int): String {
+        val parts = timestamp.split(":").map { it.toInt() }
+        val initialMinutes = parts[0] * 60 + parts[1] // Convert HH:MM to total minutes
+        val newMinutes = initialMinutes + minutesToAdd // Add the given minutes
+
+        val newHours = (newMinutes / 60) % 24 // Ensure it wraps around 24 hours if needed
+        val newMins = newMinutes % 60
+        return String.format("%02d:%02d", newHours, newMins)
     }
 
 }

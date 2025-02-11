@@ -45,6 +45,7 @@ dependencies {
     implementation("com.squareup.moshi:moshi-kotlin:1.15.0") // Moshi Kotlin support
     implementation("androidx.leanback:leanback-grid:1.0.0-alpha03")
     implementation("androidx.leanback:leanback-preference:1.2.0-alpha03")
+    implementation ("androidx.recyclerview:recyclerview:1.2.1")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(platform(libs.androidx.compose.bom))
