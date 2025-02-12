@@ -2,13 +2,16 @@ package com.example.masjiddisplay
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.widget.ImageView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.RecyclerView
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -48,13 +51,14 @@ data class ApiResponse(
 
 var timingsList = mutableMapOf("a" to "1")
 
-var iqamaTimeMap = mutableMapOf("fajr" to 25, "dhuhr" to 20, "asr" to 20, "maghreb" to 13, "isha" to 15)
+var iqamaTimeMap =
+    mutableMapOf("fajr" to 25, "dhuhr" to 20, "asr" to 20, "maghreb" to 13, "isha" to 15)
 
 class MidnightTVWorker(context: Context, workerParams: WorkerParameters) :
     Worker(context, workerParams) {
     override fun doWork(): Result {
         val url =
-            "https://api.aladhan.com/v1/timingsByCity/04-02-2025?city=Amman&country=Jordan&method=2"
+            "https://api.aladhan.com/v1/timingsByCity/04-02-2025?city=Amman&country=Jordan&method=1"
 
         val client = OkHttpClient()
         val request = Request.Builder().url(url).build()
@@ -94,6 +98,7 @@ class MainActivity : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private val updateinterval: Long = 10000
     private lateinit var imageView: ImageView
+    private lateinit var recyclerView: RecyclerView
 
     private val updateImageRunnable = object : Runnable {
         override fun run() {
@@ -102,11 +107,26 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    fun getDrawableList(context: Context, regexPattern: String): List<Int> {
+        val drawableClass = R.drawable::class.java
+        val regex = Regex(regexPattern)
+
+        return drawableClass.fields
+            .filter { regex.matches(it.name) }
+            .mapNotNull { field ->
+                try {
+                    field.getInt(null)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+    }
+
     // Function to fetch prayer times from the API
     suspend fun fetchPrayerTimes() {
         var job = CoroutineScope(Dispatchers.IO).launch {
             val url =
-                "https://api.aladhan.com/v1/timingsByCity/04-02-2025?city=Amman&country=Jordan&method=2"
+                "https://api.aladhan.com/v1/timingsByCity/04-02-2025?city=Amman&country=Jordan&method=1&tune=0,-5,0,1,7,14,0,7,0"
 
             val client = OkHttpClient()
             val request = Request.Builder().url(url).build()
@@ -183,41 +203,45 @@ class MainActivity : AppCompatActivity() {
 
             if (key == "a") continue
 
-            val afterPrayerTime = compareTimes(
+            val afterAzanTime = compareTimes(
                 String.format("%02d:%02d", hour, minute),
                 value.orEmpty()
             ) >= 0
             val beforeIqamaTime = compareTimes(
-                    String.format(
-                        "%02d:%02d",
-                        hour,
-                        minute
-                    )
-                , addMinutesToTimestamp(value.orEmpty(), iqamaTimeMap[key]!!)
+                String.format(
+                    "%02d:%02d",
+                    hour,
+                    minute
+                ), addMinutesToTimestamp(value.orEmpty(), iqamaTimeMap[key]!!)
             ) < 0
 
 
-            val afterprayerTime =  compareTimes(
+            val afterPrayerTime = compareTimes(
                 String.format(
                     "%02d:%02d",
                     hour,
                     minute
+                ),
+                addMinutesToTimestamp(
+                    addMinutesToTimestamp(value.orEmpty(), iqamaTimeMap[key]!!),
+                    10
                 )
-                , addMinutesToTimestamp(addMinutesToTimestamp(value.orEmpty(), iqamaTimeMap[key]!!), 10)
-            )  >= 0
+            ) >= 0
 
-            val endTime =  compareTimes(
+            val endTime = compareTimes(
                 String.format(
                     "%02d:%02d",
                     hour,
                     minute
+                ),
+                addMinutesToTimestamp(
+                    addMinutesToTimestamp(value.orEmpty(), iqamaTimeMap[key]!!),
+                    20
                 )
-                , addMinutesToTimestamp(addMinutesToTimestamp(value.orEmpty(), iqamaTimeMap[key]!!), 20)
-            )  < 0
-
-            if ((afterPrayerTime && beforeIqamaTime) || (afterprayerTime && endTime)) {
+            ) < 0
+            if ((afterAzanTime && beforeIqamaTime) || (afterPrayerTime && endTime)) {
                 return when (key) {
-                    "isha" -> R.drawable.isha
+                    "isha" -> getDrawableList(this, "isha.*")[0]
                     "maghreb" -> R.drawable.maghreb
                     "asr" -> R.drawable.asr
                     "dhuhr" -> R.drawable.dhuhr
