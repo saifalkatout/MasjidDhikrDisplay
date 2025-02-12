@@ -54,45 +54,6 @@ var timingsList = mutableMapOf("a" to "1")
 var iqamaTimeMap =
     mutableMapOf("fajr" to 25, "dhuhr" to 20, "asr" to 20, "maghreb" to 13, "isha" to 15)
 
-class MidnightTVWorker(context: Context, workerParams: WorkerParameters) :
-    Worker(context, workerParams) {
-    override fun doWork(): Result {
-        val url =
-            "https://api.aladhan.com/v1/timingsByCity/04-02-2025?city=Amman&country=Jordan&method=1"
-
-        val client = OkHttpClient()
-        val request = Request.Builder().url(url).build()
-
-        // Execute HTTP request
-        val response = client.newCall(request).execute()
-        val responseBody = response.body?.string()
-
-        if (!response.isSuccessful || responseBody == null) {
-            Log.e("FetchTimings", "Failed to fetch prayer times: ${response.message}")
-
-        }
-
-        // Parse JSON using Moshi
-        val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
-        val jsonAdapter = moshi.adapter(ApiResponse::class.java)
-
-        val apiResponse = responseBody?.let { jsonAdapter.fromJson(it) }
-
-        // Extract and print prayer times
-        apiResponse?.data?.timings?.let { timings ->
-            timingsList["isha"] = timings.isha
-            timingsList["maghreb"] = timings.maghreb
-            timingsList["asr"] = timings.asr
-            timingsList["dhuhr"] = timings.dhuhr
-            timingsList["fajr"] = timings.fajr
-
-        } ?: Log.e("Fetchtimings", "Failed to parse prayer times")
-        Log.i(
-            "FetchTimings", timingsList.toString()
-        )
-        return Result.success()
-    }
-}
 
 class MainActivity : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
@@ -277,23 +238,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        val initialDelay = midnight.timeInMillis - now.timeInMillis
-
-        val workRequest = PeriodicWorkRequestBuilder<MidnightTVWorker>(24, TimeUnit.HOURS)
-            .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS) // Start exactly at 12 AM
-            .setConstraints(
-                Constraints.Builder()
-                    .setRequiresBatteryNotLow(true)  // Avoid running on low battery
-                    .setRequiresCharging(false)      // Runs even if not charging
-                    .build()
-            )
-            .build()
-
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            "MidnightTVTask",
-            ExistingPeriodicWorkPolicy.UPDATE,
-            workRequest
-        )
     }
 
     fun addMinutesToTimestamp(timestamp: String, minutesToAdd: Int): String {
